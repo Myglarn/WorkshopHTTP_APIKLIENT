@@ -1,44 +1,47 @@
 ﻿using System.Text.Json;
 
 namespace ConsoleApp1
-
 {
     internal class Program
     {
         static void Main(string[] args)
         {
-         
-
             var builder = WebApplication.CreateBuilder(args);
 
-            // 1. Registrera en namngiven klient
-            // Vi sätter bas-inställningarna här så vi slipper upprepa dem.
-            builder.Services.AddHttpClient("GitHubClient", client =>
+            builder.Services.AddHttpClient("DadJokes", client =>
             {
-                client.BaseAddress = new Uri("https://api.github.com/");
-                // GitHub KRAV: En User-Agent måste finnas, annars får du 403 Forbidden.
+                client.BaseAddress = new Uri("https://icanhazdadjoke.com/");
+                client.DefaultRequestHeaders.Add("Accept", "application/json");
                 client.DefaultRequestHeaders.UserAgent.ParseAdd("MinEnklaDemoApp");
             });
 
             var app = builder.Build();
 
-            // 2. Injicera IHttpClientFactory direkt i metoden
             app.MapGet("/", async (IHttpClientFactory factory) =>
             {
-                // Skapa klienten baserat på namnet vi angav ovan
-                var client = factory.CreateClient("GitHubClient");
+                var client = factory.CreateClient("DadJokes");
 
-                // Gör anropet (hämtar rå JSON-text eftersom vi inte har någon DTO)
-                string json = await client.GetStringAsync("users/github");
+                string json = await client.GetStringAsync("");
 
-                // omvandla json till ett objekt
-                //var content = JsonSerializer.Deserialize<object>(json);
+                // Deserialize JSON into JokeRequest
+                var jokeRequest = JsonSerializer.Deserialize<JokeRequest>(json, new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true
+                });
 
-                return json;
+                if (jokeRequest is null)
+                    return Results.Problem("Failed to deserialize joke");
+
+                // Map to JokeResponse
+                var jokeResponse = new JokeResponse
+                {
+                    Joke = jokeRequest.Joke
+                };
+
+                return Results.Json(jokeResponse);
             });
 
             app.Run();
-
         }
     }
 }
